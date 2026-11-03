@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignBridge | AI Speech to Sign Avatar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root {
+        /* Ultra Premium Dark Theme */
+        --bg-dark: #030305;
+        --surface: rgba(12, 12, 16, 0.5);
+        --surface-glass: rgba(255, 255, 255, 0.02);
+        --surface-border: rgba(255, 255, 255, 0.08);
+        --surface-hover: rgba(255, 255, 255, 0.05);
+        
+        --text-main: #FAFAFA;
+        --text-muted: #A1A1AA;
+        
+        /* Cyber/Neon Accents */
+        --accent-1: #818CF8; /* Indigo */
+        --accent-2: #C084FC; /* Purple */
+        --accent-3: #2DD4BF; /* Teal/Cyan */
+        --accent-4: #F472B6; /* Pink */
+        
+        --danger: #FF5F56;
+        --warning: #FFBD2E;
+        --success: #27C93F;
+        
+        --font-sans: 'Inter', system-ui, sans-serif;
+        --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+        background-color: var(--bg-dark); color: var(--text-main);
+        font-family: var(--font-sans); font-size: 16px; line-height: 1.6;
+        overflow-x: hidden; -webkit-font-smoothing: antialiased;
+        selection-background: rgba(45, 212, 191, 0.3);
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+    :focus-visible { outline: 2px solid var(--accent-3); outline-offset: 2px; border-radius: 6px; }
+
+    /* --- AMBIENT BACKGROUND SYSTEM --- */
+    #cursor-grid { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+    .ambient-orb { position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; mix-blend-mode: screen; opacity: 0.6; }
+    .orb-1 { top: -20%; left: -10%; width: 600px; height: 600px; background: rgba(79, 70, 229, 0.15); animation: spin 30s linear infinite; }
+    .orb-2 { bottom: -20%; right: -10%; width: 600px; height: 600px; background: rgba(45, 212, 191, 0.1); animation: spin 40s linear infinite reverse; }
+    .orb-3 { top: 20%; left: 50%; transform: translateX(-50%); width: 800px; height: 400px; background: radial-gradient(circle, rgba(192, 132, 252, 0.08), transparent 70%); filter: blur(100px); }
+    .film-grain {
+        position: fixed; inset: 0; z-index: 1; opacity: 0.04; mix-blend-mode: overlay; pointer-events: none;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+    @keyframes spin { 100% { transform: rotate(360deg) scale(1.05); } }
+
+    /* --- LAYOUT & SPA VIEW TOGGLING --- */
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 10; }
+    .view-section { display: none; opacity: 0; transform: translateY(10px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .view-section.active { display: block; opacity: 1; transform: translateY(0); }
+
+    /* --- NAVIGATION --- */
+    .top { position: sticky; top: 0; z-index: 50; background: rgba(3, 3, 5, 0.6); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--surface-border); transition: all 0.3s ease; }
+    .topbar { display: flex; align-items: center; height: 80px; justify-content: space-between; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text-main); font-family: var(--font-display); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; cursor: pointer; transition: transform 0.2s; }
+    .brand:hover { transform: scale(1.02); }
+    .brand svg { filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.6)); }
+    
+    .desktop-nav { display: flex; gap: 32px; }
+    .desktop-nav a { color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: color 0.2s; position: relative; }
+    .desktop-nav a:hover, .desktop-nav a.active-link { color: #fff; }
+    .desktop-nav a::after { content: ''; position: absolute; bottom: -8px; left: 0; width: 0%; height: 2px; background: var(--accent-3); transition: width 0.3s ease; border-radius: 2px; box-shadow: 0 0 8px var(--accent-3); }
+    .desktop-nav a:hover::after, .desktop-nav a.active-link::after { width: 100%; }
+
+    /* Premium StarBorder Button */
+    .star-border { position: relative; overflow: hidden; border-radius: 999px; padding: 1px; background: rgba(255, 255, 255, 0.1); cursor: pointer; display: inline-flex; transition: transform 0.2s; text-decoration: none; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .star-border:hover { transform: scale(0.97); box-shadow: 0 12px 30px rgba(45, 212, 191, 0.2); }
+    .star-border::before, .star-border::after { content: ''; position: absolute; width: 300%; height: 50%; opacity: 0.8; z-index: 0; background: radial-gradient(circle, var(--accent-3), transparent 10%); }
+    .star-border::before { bottom: -11px; right: -250%; animation: star-move-bottom 3s linear infinite alternate; }
+    .star-border::after { top: -10px; left: -250%; animation: star-move-top 3s linear infinite alternate; }
+    .star-border-inner { position: relative; z-index: 1; background: #09090B; border-radius: 999px; padding: 0.75rem 2rem; font-weight: 600; font-size: 14px; color: #fff; transition: background 0.3s; display: flex; align-items: center; gap: 8px; }
+    .star-border:hover .star-border-inner { background: rgba(255,255,255,0.08); }
+    @keyframes star-move-bottom { 0% { transform: translate(0%, 0%); opacity: 1; } 100% { transform: translate(-100%, 0%); opacity: 0; } }
+    @keyframes star-move-top { 0% { transform: translate(0%, 0%); opacity: 1; } 100% { transform: translate(100%, 0%); opacity: 0; } }
+
+    /* --- SHARED COMPONENTS --- */
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 99px; background: rgba(45, 212, 191, 0.05); border: 1px solid rgba(45, 212, 191, 0.2); margin-bottom: 24px; font-size: 12px; letter-spacing: 0.1em; color: var(--accent-3); font-weight: 600; font-family: var(--font-mono); box-shadow: 0 0 20px rgba(45, 212, 191, 0.1); }
+    .badge-dot { width: 8px; height: 8px; background: var(--accent-3); border-radius: 50%; box-shadow: 0 0 10px var(--accent-3); animation: pulse 2s infinite; }
+    
+    .section-h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 4rem); font-weight: 800; margin-bottom: 1.5rem; line-height: 1.1; letter-spacing: -0.02em; }
+    .section-p { color: var(--text-muted); font-size: 1.15rem; max-width: 600px; line-height: 1.7; margin-bottom: 3rem; }
+
+    /* --- VIEW 1: HOME PAGE --- */
+    .hero-section { padding: 10rem 0 6rem; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 90vh; justify-content: center; }
+    .hero-h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 7vw, 7rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.04em; margin-bottom: 1.5rem; text-align: center; drop-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .gradient-text { background: linear-gradient(135deg, var(--accent-1), var(--accent-2), var(--accent-3)); background-size: 300% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: gradientMove 8s ease infinite; display: inline-block; }
+    @keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .hero-p { font-size: 1.25rem; color: var(--text-muted); max-width: 680px; margin: 0 auto 3rem; text-align: center; font-weight: 400; line-height: 1.7; }
+
+    /* Infinite Marquee */
+    .marquee-container { border-top: 1px solid var(--surface-border); border-bottom: 1px solid var(--surface-border); background: rgba(0,0,0,0.4); padding: 2.5rem 0; overflow: hidden; display: flex; position: relative; z-index: 10; margin-top: 2rem; backdrop-filter: blur(10px); }
+    .marquee-content { display: flex; gap: 4rem; white-space: nowrap; animation: marquee 30s linear infinite; opacity: 0.4; filter: grayscale(100%); font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.1em; transition: opacity 0.4s, filter 0.4s; font-weight: 500; }
+    .marquee-container:hover .marquee-content { opacity: 1; filter: grayscale(0%); }
+    @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* Bento Grid */
+    .bento-section { padding: 8rem 0; }
+    .bento-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 3rem; }
+    .bento-card { background: var(--surface-glass); border: 1px solid var(--surface-border); border-radius: 32px; padding: 3rem 2.5rem; position: relative; overflow: hidden; transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.4s ease; backdrop-filter: blur(12px); }
+    .bento-card:hover { transform: translateY(-8px); box-shadow: 0 30px 60px -15px rgba(0,0,0,0.8), 0 0 40px rgba(129, 140, 248, 0.1); border-color: rgba(255,255,255,0.2); }
+    .bento-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%); pointer-events: none; }
+    .span-2 { grid-column: span 2; }
+    @media (max-width: 900px) { .bento-grid { grid-template-columns: 1fr; } .span-2 { grid-column: span 1; } }
+    .bento-icon { width: 64px; height: 64px; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem; font-size: 28px; box-shadow: inset 0 0 20px rgba(255,255,255,0.02); }
+    .bento-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; font-family: var(--font-display); letter-spacing: -0.01em; }
+    .bento-desc { color: var(--text-muted); font-size: 1.05rem; line-height: 1.6; }
+
+    /* Timeline */
+    .timeline-section { padding: 8rem 0; border-top: 1px solid var(--surface-border); background: radial-gradient(ellipse at center, rgba(129, 140, 248, 0.03) 0%, transparent 70%); }
+    .timeline-container { position: relative; margin-top: 5rem; max-width: 900px; margin-left: auto; margin-right: auto; }
+    .timeline-container::before { content: ''; position: absolute; left: 32px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, transparent, var(--accent-1), var(--accent-3), transparent); opacity: 0.3; }
+    @media (min-width: 768px) { .timeline-container::before { left: 50%; transform: translateX(-50%); } }
+    
+    .timeline-step { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5rem; position: relative; flex-direction: row; }
+    .timeline-number { width: 64px; height: 64px; border-radius: 50%; background: #000; border: 2px solid var(--surface-border); box-shadow: 0 0 0 8px var(--bg-dark); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--text-muted); z-index: 10; position: relative; transition: all 0.4s ease; flex-shrink: 0; }
+    .timeline-step:hover .timeline-number { color: #fff; border-color: var(--accent-3); box-shadow: 0 0 20px rgba(45, 212, 191, 0.4), 0 0 0 8px var(--bg-dark); transform: scale(1.1); }
+    
+    .timeline-content { width: calc(100% - 100px); padding: 2.5rem; background: var(--surface-glass); border: 1px solid var(--surface-border); border-radius: 32px; transition: all 0.4s ease; backdrop-filter: blur(10px); }
+    .timeline-step:hover .timeline-content { border-color: rgba(255,255,255,0.2); transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.5); background: rgba(255,255,255,0.03); }
+    
+    @media (min-width: 768px) {
+        .timeline-step:nth-child(odd) { flex-direction: row-reverse; }
+        .timeline-step:nth-child(even) .timeline-content { text-align: right; }
+        .timeline-number { margin: 0 auto; position: absolute; left: 50%; transform: translateX(-50%); }
+        .timeline-content { width: calc(50% - 4rem); }
+    }
+    .timeline-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; font-family: var(--font-display); }
+    .timeline-desc { color: var(--text-muted); font-size: 1.05rem; line-height: 1.6; }
+
+    /* Footer CTA */
+    .cta-section { padding: 10rem 0; text-align: center; border-top: 1px solid var(--surface-border); position: relative; overflow: hidden; }
+    .cta-section::before { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 100vw; height: 500px; background: radial-gradient(circle at bottom, rgba(45, 212, 191, 0.1), transparent 60%); z-index: -1; }
+
+    /* --- VIEW 2 & 3: DOCS & ABOUT --- */
+    .page-header { padding: 6rem 0 3rem; border-bottom: 1px solid var(--surface-border); margin-bottom: 4rem; text-align: center; }
+    .text-content { max-width: 800px; margin: 0 auto; color: var(--text-muted); font-size: 1.1rem; line-height: 1.8; }
+    .text-content h3 { color: #fff; font-family: var(--font-display); font-size: 1.8rem; margin: 3rem 0 1rem; }
+    .text-content p { margin-bottom: 1.5rem; }
+    .text-content ul { margin-left: 1.5rem; margin-bottom: 2rem; }
+    .text-content li { margin-bottom: 0.5rem; }
+
+    /* --- VIEW 4: PROTOTYPE APP WORKSPACE --- */
+    .app-workspace { padding: 3rem 0 6rem; }
+    
+    .workspace-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 2rem; align-items: start; }
+    @media (max-width: 1024px) { .workspace-layout { grid-template-columns: 1fr; } }
+
+    /* The Stage (Avatar Canvas) */
+    .stage-container { display: flex; flex-direction: column; gap: 16px; perspective: 1200px; transform-style: preserve-3d; transition: transform 180ms ease-out; }
+    
+    .stage {
+        position: relative; overflow: hidden; border-radius: 32px;
+        background: radial-gradient(140% 120% at 50% 20%, #0F172A 0%, #020617 60%, #000000 100%);
+        box-shadow: 0 40px 100px -20px rgba(0,0,0,1), inset 0 0 0 1px rgba(255,255,255,0.1);
+        transform: translateZ(0); flex-grow: 1; aspect-ratio: 4/3; width: 100%;
+    }
+    .stage canvas { display: block; width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; mix-blend-mode: screen; }
+    .avatar-label { position: absolute; z-index: 10; top: 20px; left: 22px; padding: 6px 10px; border: 1px solid rgba(45, 212, 191, 0.25); border-radius: 999px; background: rgba(3, 3, 5, 0.55); color: var(--accent-3); font: 10px var(--font-mono); letter-spacing: 0.08em; }
+    
+    .subtitle { position: absolute; left: 32px; right: 32px; bottom: 32px; color: rgba(255,255,255,0.9); font-size: 20px; font-weight: 500; text-shadow: 0 4px 24px rgba(0,0,0,0.8); font-family: var(--font-display); letter-spacing: 0.02em; z-index: 10; text-align: center; background: rgba(0,0,0,0.4); backdrop-filter: blur(10px); padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); }
+    .subtitle.idle { color: rgba(255,255,255,0.4); font-weight: 400; background: transparent; border-color: transparent; backdrop-filter: none; }
+    
+    .active-word { color: var(--accent-3); text-shadow: 0 0 15px rgba(45, 212, 191, 0.6); font-weight: 700; font-size: 24px;}
+    .letter { display: inline-block; min-width: 0.7em; text-align: center; opacity: 0.35; transition: all 0.15s; font-size: 2rem; color: var(--accent-3); text-transform: uppercase; font-family: var(--font-mono); }
+    .letter.on { opacity: 1; transform: scale(1.3) translateY(-4px); text-shadow: 0 0 20px rgba(45, 212, 191, 0.8); color: #fff; }
+
+    /* Controls Panel (Right Side) */
+    .controls-panel { background: var(--surface-glass); border: 1px solid var(--surface-border); border-radius: 32px; padding: 2rem; backdrop-filter: blur(20px); display: flex; flex-direction: column; gap: 2rem; position: sticky; top: 100px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    
+    .terminal-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 1rem; margin-bottom: 0.5rem; }
+    .mac-dots { display: flex; gap: 8px; }
+    .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.05em; background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); }
+    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .status.ok { color: var(--accent-3); border-color: rgba(45, 212, 191, 0.3); }
+    .status.ok .dot { animation: pulse 2s ease-in-out infinite; box-shadow: 0 0 12px var(--accent-3); }
+    .status.bad { color: var(--danger); }
+    @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.8); opacity: 0.5; } }
+
+    .lab { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    
+    .glass-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--surface-border); border-radius: 16px; padding: 16px 20px; color: #fff; font-family: var(--font-sans); font-size: 15px; transition: all 0.3s ease; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+    .glass-input:focus { border-color: var(--accent-3); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 0 0 4px rgba(45, 212, 191, 0.1); background: rgba(0,0,0,0.5); }
+    .input-row { display: flex; gap: 8px; }
+    .input-row .glass-input { flex: 1; min-width: 0; }
+    .send-btn { flex: 0 0 auto; border: 1px solid rgba(45, 212, 191, 0.35); border-radius: 14px; padding: 0 16px; background: rgba(45, 212, 191, 0.12); color: var(--accent-3); font: 600 13px var(--font-sans); cursor: pointer; }
+    .send-btn:hover { background: rgba(45, 212, 191, 0.22); }
+    
+    .quick-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .pill { font-family: var(--font-sans); font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--surface-border); background: rgba(255,255,255,0.02); color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
+    .pill:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; background: rgba(0,0,0,0.2); border-radius: 16px; padding: 12px; border: 1px solid var(--surface-border); }
+    .tok { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--font-mono); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); color: var(--text-muted); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    .tok.active { background: rgba(45, 212, 191, 0.15); color: var(--accent-3); border-color: var(--accent-3); transform: scale(1.05); box-shadow: 0 4px 12px rgba(45, 212, 191, 0.2); }
+    .tok.done { color: var(--accent-1); background: rgba(129, 140, 248, 0.1); border-color: rgba(129, 140, 248, 0.2); }
+    .tok.spell { border-style: dashed; }
+
+    /* Tables & Dictionary */
+    .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem; }
+    @media (max-width: 900px) { .data-grid { grid-template-columns: 1fr; } }
+    
+    .data-card { background: var(--surface-glass); border: 1px solid var(--surface-border); border-radius: 24px; padding: 2rem; backdrop-filter: blur(10px); }
+    .tablewrap { overflow-x: auto; max-height: 300px; border-radius: 12px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-sans); }
+    th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; color: var(--text-muted); padding: 16px; border-bottom: 1px solid var(--surface-border); background: rgba(0,0,0,0.5); position: sticky; top: 0; z-index: 2; }
+    td { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #fff; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    td.gloss { font-family: var(--font-mono); color: var(--accent-3); font-weight: 600; }
+    
+    .dict-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 300px; overflow-y: auto; padding-right: 8px; }
+    .dict-item { background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-family: var(--font-mono); cursor: pointer; transition: all 0.2s; color: var(--text-muted); }
+    .dict-item:hover { background: rgba(45, 212, 191, 0.1); border-color: var(--accent-3); color: var(--accent-3); transform: translateY(-2px); }
+    
+    /* Stats */
+    .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .stat-box { background: rgba(0,0,0,0.3); border: 1px solid var(--surface-border); border-radius: 16px; padding: 1.5rem; text-align: center; }
+    .stat-val { font-family: var(--font-display); font-size: 2.5rem; font-weight: 800; color: #fff; line-height: 1; margin-bottom: 8px; }
+    .stat-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 600; }
+
+</style>
+</head>
+<body>
+
+<!-- Ambient Layers -->
+<canvas id="cursor-grid"></canvas>
+<div class="ambient-orb orb-1"></div>
+<div class="ambient-orb orb-2"></div>
+<div class="ambient-orb orb-3"></div>
+<div class="film-grain"></div>
+
+<!-- Nav -->
+<header class="top">
+  <div class="wrap topbar">
+    <div class="brand" onclick="switchView('landing')">
+      <svg width="28" height="28" viewBox="0 0 30 30" fill="none">
+        <rect width="30" height="30" rx="8" fill="#4F46E5"/>
+        <rect x="6" y="12" width="3.6" height="6" rx="1.8" fill="#2DD4BF"/>
+        <rect x="11.2" y="8" width="3.6" height="14" rx="1.8" fill="#2DD4BF"/>
+        <rect x="16.4" y="10" width="3.6" height="10" rx="1.8" fill="#C084FC"/>
+      </svg>
+      SignBridge
+    </div>
+    
+    <nav class="desktop-nav">
+        <a id="nav-landing" class="active-link" onclick="switchView('landing')">Home</a>
+        <a id="nav-docs" onclick="switchView('docs')">Architecture</a>
+        <a id="nav-about" onclick="switchView('about')">About</a>
+    </nav>
+    
+    <a href="javascript:void(0)" class="star-border" id="navBtnAction" onclick="switchView('app')">
+      <div class="star-border-inner" id="navBtnText">
+        Initialize Prototype
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </div>
+    </a>
+  </div>
+</header>
+
+<main>
+
+<!-- ========================================== -->
+<!-- VIEW 1: LANDING PAGE                       -->
+<!-- ========================================== -->
+<div id="view-landing" class="view-section active">
+    <section class="wrap hero-section">
+        <div class="badge">
+            <span class="badge-dot"></span>
+            WLASL ACADEMIC PROTOTYPE
+        </div>
+        
+        <h1 class="hero-h1">
+            Speech to Sign.<br/>
+            <span class="gradient-text">A Live 2D Avatar.</span>
+        </h1>
+        
+        <p class="hero-p">
+            Speak English or type a sentence. SignBridge animates its 51 WLASL-derived signs from landmark data on a 2D canvas; unsupported words appear as text. This prototype is not a complete sign-language translator.
+        </p>
+
+        <a href="javascript:void(0)" class="star-border" style="transform: scale(1.15); margin-top: 1rem;" onclick="switchView('app')">
+            <div class="star-border-inner">
+                Enter Workspace
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </div>
+        </a>
+    </section>
+
+    <!-- INFINITE MARQUEE -->
+    <div class="marquee-container">
+        <div class="marquee-content">
+            <span>PYTHON FASTAPI BACKEND</span> •
+            <span>FASTER-WHISPER INFERENCE</span> •
+            <span>MEDIAPIPE HOLISTIC EXTRACTION</span> •
+            <span>WEB-SOCKET REAL-TIME STREAMING</span> •
+            <span>HTML5 CANVAS RENDERING</span> •
+            <span>PYTHON FASTAPI BACKEND</span> •
+            <span>FASTER-WHISPER INFERENCE</span> •
+            <span>MEDIAPIPE HOLISTIC EXTRACTION</span> •
+            <span>WEB-SOCKET REAL-TIME STREAMING</span> •
+            <span>HTML5 CANVAS RENDERING</span>
+        </div>
+    </div>
+
+    <!-- ARCHITECTURE BENTO GRID -->
+    <section class="wrap bento-section">
+        <div class="badge" style="color: var(--accent-2); border-color: rgba(192, 132, 252, 0.3); background: rgba(192, 132, 252, 0.05); box-shadow: none;">
+            <span class="badge-dot" style="background: var(--accent-2); box-shadow: none; animation: none;"></span>
+            ARCHITECTURE HIGHLIGHTS
+        </div>
+        <h2 class="section-h2">Engineered for absolute speed.</h2>
+        <p class="section-p">We replaced bloated translation models with surgical rule-based parsing and optimized landmark structures for immediate rendering.</p>
+        
+        <div class="bento-grid">
+            <div class="bento-card span-2">
+                <div class="bento-icon" style="color: var(--accent-1);">✇</div>
+                <h3 class="bento-title">Whisper & VAD</h3>
+                <p class="bento-desc">The backend utilizes Faster-Whisper bound to local CPU inference. Audio streams are monitored for 0.7s silence thresholds to instantly close and transcribe sentence blocks.</p>
+            </div>
+            
+            <div class="bento-card">
+                <div class="bento-icon" style="color: var(--success);">⚡</div>
+                <h3 class="bento-title">Gloss NLP</h3>
+                <p class="bento-desc">NLP rules filter stopwords, reduce verbs to their root forms, and format WH-questions directly into actionable sign parameters.</p>
+            </div>
+
+            <div class="bento-card">
+                <div class="bento-icon" style="color: var(--accent-3);">⛙</div>
+                <h3 class="bento-title">MediaPipe Mapping</h3>
+                <p class="bento-desc">Words are matched to extracted WLASL spatial coordinates. The frontend seamlessly interpolates between points to generate a fluid skeletal avatar.</p>
+            </div>
+
+            <div class="bento-card span-2">
+                <div class="bento-icon" style="color: var(--danger);">🛡️</div>
+                <h3 class="bento-title">WebSocket Streaming</h3>
+                <p class="bento-desc">Bi-directional payloads stream transcription status and tokenized utterance arrays in milliseconds, enabling live visual feedback without HTTP overhead.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- WORKFLOW TIMELINE -->
+    <section class="timeline-section">
+        <div class="wrap">
+            <div style="text-align: center;">
+                <h2 class="section-h2">How the pipeline works</h2>
+            </div>
+            <div class="timeline-container">
+                <div class="timeline-step">
+                    <div class="timeline-number">01</div>
+                    <div class="timeline-content">
+                        <h4 class="timeline-title">Audio Capture</h4>
+                        <p class="timeline-desc">Microphone array captures 16kHz mono audio, slicing it into 30ms blocks calibrated against room noise.</p>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-number">02</div>
+                    <div class="timeline-content">
+                        <h4 class="timeline-title">Transcription & Gloss</h4>
+                        <p class="timeline-desc">Int8 quantized Whisper models generate text. The Python parser strips filler, handling tense normalization.</p>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-number">03</div>
+                    <div class="timeline-content">
+                        <h4 class="timeline-title">WebSocket Broadcast</h4>
+                        <p class="timeline-desc">The server transmits a JSON utterance array classifying supported signs and flagged fingerspelling fallback strings.</p>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-number">04</div>
+                    <div class="timeline-content">
+                        <h4 class="timeline-title">Live Canvas Avatar</h4>
+                        <p class="timeline-desc">The browser processes <code>landmarks_data.js</code>, pushing skeletal frames to the 2D Context queue with smooth interpolation.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER CTA -->
+    <section class="cta-section">
+        <div class="wrap">
+            <h2 class="section-h2" style="font-size: clamp(3rem, 6vw, 5rem);">End the silence.</h2>
+            <p class="section-p" style="margin: 0 auto 3rem; text-align: center;">Experience the real-time pipeline in the live workspace.</p>
+            <a href="javascript:void(0)" class="star-border" style="transform: scale(1.2);" onclick="switchView('app')">
+                <div class="star-border-inner">
+                    Initialize Prototype
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:8px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </div>
+            </a>
+        </div>
+    </section>
+</div>
+
+<!-- ========================================== -->
+<!-- VIEW 2: DOCS PAGE                          -->
+<!-- ========================================== -->
+<div id="view-docs" class="view-section">
+    <div class="wrap">
+        <div class="page-header">
+            <div class="badge" style="color: var(--accent-1); border-color: rgba(129, 140, 248, 0.3); background: rgba(129, 140, 248, 0.05); box-shadow: none;">
+                <span class="badge-dot" style="background: var(--accent-1); box-shadow: none; animation: none;"></span>
+                SYSTEM DOCUMENTATION
+            </div>
+            <h1 class="hero-h1" style="margin-top: 1rem;">Architecture & Logic</h1>
+            <p class="hero-p">Deep dive into the SignBridge transcription, NLP, and rendering pipelines.</p>
+        </div>
+        
+        <div class="text-content">
+            <h3>1. Audio & VAD Pipeline</h3>
+            <p>The Python backend streams a 16kHz mono microphone feed using <code>sounddevice</code>. Audio blocks are buffered in 30ms chunks. A dynamic background noise calibrator runs for 1 second on startup to set an RMS threshold. Once voice activity drops below the threshold for ~0.7 seconds, the utterance buffer is finalized and dispatched to the transcription engine.</p>
+            
+            <h3>2. Faster-Whisper Inference</h3>
+            <p>Inference runs entirely locally on the CPU using the <code>base.en</code> model in int8 quantization. This ensures maximum privacy and sub-second transcription latency without requiring external API calls or GPU compute overhead.</p>
+
+            <h3>3. Rule-Based Gloss NLP</h3>
+            <p>Because true ASL translation requires complex transformer models, this prototype utilizes a deterministic rule-based NLP pipeline (<code>gloss.py</code>):</p>
+            <ul>
+                <li><strong>Tokenization & Normalization:</strong> Lowercases text and expands contractions (e.g., "don't" -> "do not").</li>
+                <li><strong>Stopword Removal:</strong> Purges English filler words (is, am, are, the, a).</li>
+                <li><strong>Lemmatization:</strong> Strips suffixes (-ing, -ed, -s) to map inflected verbs to their base dictionary form.</li>
+                <li><strong>Syntax Reordering:</strong> Detects WH-question words (who, what, where) and moves them to the end of the token list to mimic basic ASL gloss structures.</li>
+            </ul>
+
+            <h3>4. WLASL Dataset & MediaPipe</h3>
+            <p>The visual vocabulary relies on the Word-Level American Sign Language (WLASL) dataset. Source MP4s are processed via Google's MediaPipe Holistic to extract exactly:</p>
+            <ul>
+                <li>33 Pose/Body landmarks</li>
+                <li>21 Left-hand landmarks</li>
+                <li>21 Right-hand landmarks</li>
+            </ul>
+            <p>Missing frames are filled using linear gap-filling, and coordinates are mathematically normalized and smoothed in the browser to ensure the avatar scales properly to any screen size.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- VIEW 3: ABOUT PAGE                         -->
+<!-- ========================================== -->
+<div id="view-about" class="view-section">
+    <div class="wrap">
+        <div class="page-header">
+            <div class="badge" style="color: var(--accent-4); border-color: rgba(244, 114, 182, 0.3); background: rgba(244, 114, 182, 0.05); box-shadow: none;">
+                <span class="badge-dot" style="background: var(--accent-4); box-shadow: none; animation: none;"></span>
+                PROJECT INFO
+            </div>
+            <h1 class="hero-h1" style="margin-top: 1rem;">About SignBridge</h1>
+            <p class="hero-p">The scope, limits, and future of the prototype.</p>
+        </div>
+        
+        <div class="text-content">
+            <h3>Academic Prototype</h3>
+            <p>SignBridge was developed as a college major project to demonstrate the feasibility of a real-time, low-latency speech-to-sign avatar pipeline running locally in a browser without heavy 3D rendering engines.</p>
+            
+            <h3>Current Limitations</h3>
+            <ul>
+                <li><strong>51 Word Vocabulary:</strong> The system only knows 51 specific signs mapped from WLASL.</li>
+                <li><strong>Fingerspelling Fallback:</strong> Unrecognized words are currently rendered as text letters on screen. Animated A-Z fingerspelling handshapes are not yet implemented.</li>
+                <li><strong>English Only:</strong> Input is restricted to English via the Whisper <code>base.en</code> model.</li>
+                <li><strong>No Facial Grammar:</strong> Non-manual markers (eyebrows, mouth morphology) are crucial to real ASL but are excluded from this 2D canvas render.</li>
+            </ul>
+
+            <h3>Future Scope</h3>
+            <p>The architecture is designed to scale. Future iterations aim to replace the 2D Canvas lines with a fully rigged Three.js 3D avatar, expand the dictionary using Indian Sign Language (ISL) datasets, and integrate multilingual Whisper models to support Hindi and Telugu input.</p>
+            
+            <h3 style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--surface-border);">Attribution</h3>
+            <p>Sign videos used for pose extraction are sourced from the WLASL dataset. This project is for academic and demonstration purposes only.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- VIEW 4: PROTOTYPE APP WORKSPACE            -->
+<!-- ========================================== -->
+<div id="view-app" class="view-section">
+    <div class="wrap app-workspace">
+        
+        <div class="workspace-layout">
+            <!-- LEFT PANE: AVATAR STAGE -->
+            <div class="stage-container">
+                <!-- Mac Header & Status -->
+                <div class="terminal-header" style="background: var(--surface-glass); border: 1px solid var(--surface-border); border-radius: 24px 24px 0 0; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between;">
+                    <div class="mac-dots">
+                        <div class="mac-dot" style="background: var(--danger)"></div>
+                        <div class="mac-dot" style="background: var(--warning)"></div>
+                        <div class="mac-dot" style="background: var(--success)"></div>
+                    </div>
+                    <div class="status" id="connStatus">
+                        <span class="dot" id="connIndicator"></span>
+                        CONNECTING WS://
+                    </div>
+                    <div style="width: 44px;"></div> <!-- Spacer for centering -->
+                </div>
+
+                <!-- CANVAS -->
+                <div class="stage" id="stage" style="border-radius: 0 0 24px 24px; border-top: none;">
+                    <canvas id="avatarCanvas" width="720" height="810"></canvas>
+                    <div class="avatar-label">2D LANDMARK AVATAR</div>
+                    <div class="subtitle idle" id="subtitles">Awaiting audio or text input...</div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANE: CONTROLS -->
+            <div class="controls-panel">
+                <div>
+                    <div class="lab">Override Input</div>
+                    <div class="input-row">
+                        <input type="text" id="demoInput" class="glass-input" placeholder="Type a sentence..." autocomplete="off">
+                        <button type="button" class="send-btn" id="sendBtn">Sign it</button>
+                    </div>
+                    <div class="quick-prompts">
+                        <button class="pill" onclick="sendText('Hello how are you')">Hello</button>
+                        <button class="pill" onclick="sendText('I need a doctor')">Need Doctor</button>
+                        <button class="pill" onclick="sendText('Where is the hospital')">Hospital</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="lab">Extracted Glosses</div>
+                    <div class="chips" id="glossChips">
+                        <em style="font-size: 13px; color: var(--text-muted); font-family: var(--font-sans);">Waiting for tokens...</em>
+                    </div>
+                </div>
+
+                <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--surface-border);">
+                    <div class="lab">Engine Speed <span id="speedVal" style="color: #fff;">1.0x</span></div>
+                    <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 100%; accent-color: var(--accent-3);">
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM DATA METRICS -->
+        <div class="data-grid">
+            <!-- Log -->
+            <div class="data-card">
+                <div class="lab">
+                    Session Log 
+                    <button class="pill" id="csvBtn" style="margin-top: -6px;">Export CSV</button>
+                </div>
+                <div class="tablewrap">
+                    <table id="historyTable">
+                        <thead><tr><th>Transcript</th><th>Glosses</th><th>ASR Time</th><th>Play</th></tr></thead>
+                        <tbody><tr><td colspan="4" class="empty">Log is empty.</td></tr></tbody>
+                    </table>
+                </div>
+                
+                <div class="stat-row">
+                    <div class="stat-box">
+                        <div class="stat-val" id="statSent">0</div>
+                        <div class="stat-lbl">Sentences</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="statCov">0%</div>
+                        <div class="stat-lbl">Coverage</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dictionary -->
+            <div class="data-card">
+                <div class="lab">Loaded Dictionary (51 Signs)</div>
+                <input type="text" id="dictSearch" class="glass-input" placeholder="Search memory map..." style="margin-bottom: 1rem; padding: 12px; font-size: 13px;">
+                <div class="dict-list" id="dictList"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+</main>
+
+<script src="landmarks_data.js"></script>
+
+<script>
+// ==========================================
+// SPA ROUTER LOGIC
+// ==========================================
+function switchView(viewId) {
+    ['landing', 'app', 'docs', 'about'].forEach(id => {
+        const el = document.getElementById('view-' + id);
+        if (id === viewId) {
+            el.style.display = 'block';
+            setTimeout(() => el.classList.add('active'), 50);
+        } else {
+            el.classList.remove('active');
+            setTimeout(() => el.style.display = 'none', 400);
+        }
+    });
+
+    document.getElementById('nav-landing').classList.toggle('active-link', viewId === 'landing');
+    document.getElementById('nav-docs').classList.toggle('active-link', viewId === 'docs');
+    document.getElementById('nav-about').classList.toggle('active-link', viewId === 'about');
+
+    const navBtnText = document.getElementById('navBtnText');
+    const navBtnAction = document.getElementById('navBtnAction');
+
+    if (viewId === 'app') {
+        navBtnText.innerHTML = '← Exit Prototype';
+        navBtnAction.onclick = () => switchView('landing');
+        setTimeout(() => document.getElementById('demoInput').focus(), 600);
+    } else {
+        navBtnText.innerHTML = 'Initialize Prototype <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>';
+        navBtnAction.onclick = () => switchView('app');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+(() => {
+    // ==========================================
+    // 1. VANILLA CURSOR GRID
+    // ==========================================
+    const initGrid = () => {
+        const canvas = document.getElementById('cursor-grid');
+        const ctx = canvas.getContext('2d');
+        let w, h, cols, rows, alphas, touched;
+        const cellSize = 70, radius = 250, maxOpacity = 0.15, fadeStep = 16/1000;
+        let running = false;
+        
+        const resize = () => {
+            w = window.innerWidth; h = window.innerHeight;
+            canvas.width = w; canvas.height = h;
+            cols = Math.ceil(w / cellSize) + 1; rows = Math.ceil(h / cellSize) + 1;
+            alphas = new Float32Array(cols * rows); touched = new Float64Array(cols * rows);
+            wake();
+        };
+        
+        const energize = (x, y) => {
+            const now = performance.now();
+            for(let r=0; r<rows; r++) {
+                for(let c=0; c<cols; c++) {
+                    const cx = c*cellSize + cellSize/2, cy = r*cellSize + cellSize/2;
+                    const dist = Math.hypot(cx-x, cy-y);
+                    if(dist < radius) {
+                        const level = Math.pow(1 - dist/radius, 2) * maxOpacity;
+                        const i = r*cols + c;
+                        if(level > alphas[i]) { alphas[i] = level; touched[i] = now; }
+                    }
+                }
+            }
+            wake();
+        };
+
+        const draw = (now) => {
+            ctx.clearRect(0,0,w,h);
+            let active = false;
+            for(let i=0; i<alphas.length; i++) {
+                if(alphas[i] <= 0) continue;
+                if(now - touched[i] > 100) alphas[i] = Math.max(0, alphas[i] - fadeStep);
+                if(alphas[i] > 0) active = true;
+                
+                const c = i % cols, r = Math.floor(i / cols);
+                const cx = c*cellSize + cellSize/2, cy = r*cellSize + cellSize/2;
+                
+                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cellSize/2);
+                grad.addColorStop(0, `rgba(45, 212, 191, ${alphas[i]})`);
+                grad.addColorStop(1, `rgba(45, 212, 191, 0)`);
+                
+                ctx.fillStyle = grad;
+                ctx.fillRect(cx - cellSize/2, cy - cellSize/2, cellSize, cellSize);
+            }
+            if(active) requestAnimationFrame(draw); else running = false;
+        };
+
+        const wake = () => { if(!running) { running = true; requestAnimationFrame(draw); } };
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', e => { energize(e.clientX, e.clientY); });
+        resize();
+    };
+    initGrid();
+
+    // ==========================================
+    // 2. 3D TILT EFFECT 
+    // ==========================================
+    const card = document.querySelector('.stage-container');
+    if (card) {
+        card.addEventListener('mousemove', e => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left, y = e.clientY - rect.top;
+            const cx = rect.width / 2, cy = rect.height / 2;
+            const rotateX = ((y - cy) / cy) * -3;
+            const rotateY = ((x - cx) / cx) * 3;
+            card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`;
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+        });
+    }
+
+    // ==========================================
+    // 3. AVATAR RENDERER
+    // ==========================================
+    const S_W = 720, S_H = 810;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const canvas = document.getElementById('avatarCanvas');
+    canvas.width = S_W * DPR; canvas.height = S_H * DPR;
+    const ctx = canvas.getContext("2d");
+    const FINGERS = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20]];
+
+    function renderAvatar(g, f, W, H, o = {}) {
+        const s = W / 720, z = o.zoom || 1, P = f.pose;
+        const X = p => p[0] * W, Y = p => p[1] * W;
+        g.setTransform(o.dpr || 1, 0, 0, o.dpr || 1, 0, 0);
+        g.clearRect(0, 0, W, H);
+        g.lineCap = "round"; g.lineJoin = "round";
+        
+        if (z !== 1) { g.translate(W / 2, H * 0.4); g.scale(z, z); g.translate(-W / 2, -H * 0.4); }
+
+        if (P) {
+            const a = P[11], b = P[12];
+            const sw = Math.hypot(a[0] - b[0], a[1] - b[1]) || 0.3;
+            const top = Math.min(a[1], b[1]) * W;
+
+            // Gradient torso
+            const grad = g.createLinearGradient(0, top, 0, H);
+            grad.addColorStop(0, "#2DD4BF"); grad.addColorStop(1, "rgba(45, 212, 191, 0)");
+            g.fillStyle = grad; g.strokeStyle = grad; g.lineWidth = 34 * s;
+            g.beginPath(); g.moveTo(X(a), Y(a)); g.lineTo(X(b), Y(b)); g.lineTo(X(b), H + 40); g.lineTo(X(a), H + 40); g.closePath();
+            g.fill(); g.stroke();
+
+            // Arms
+            const arm = (i, j, k, hand) => {
+                const A = P[i], B = P[j], C = hand ? hand[0] : P[k];
+                if(A && B && C) {
+                    g.beginPath(); g.moveTo(X(A), Y(A)); g.lineTo(X(B), Y(B)); g.lineTo(X(C), Y(C));
+                    g.strokeStyle = "#115E59"; g.lineWidth = 30 * s; g.stroke();
+                    g.strokeStyle = "#0F766E"; g.lineWidth = 22 * s; g.stroke();
+                }
+            };
+            arm(11, 13, 15, f.left); arm(12, 14, 16, f.right);
+
+            // Neck & Head
+            if(P[7] && P[8]) {
+                const hx = (P[7][0] + P[8][0]) / 2, hy = (P[7][1] + P[8][1]) / 2 + sw * 0.03, r = sw * 0.29;
+                g.beginPath(); g.moveTo(hx * W, (hy + r * 0.5) * W); g.lineTo(((a[0] + b[0]) / 2) * W, ((a[1] + b[1]) / 2) * W);
+                g.strokeStyle = "#0F766E"; g.lineWidth = 26 * s; g.stroke();
+                g.beginPath(); g.arc(hx * W, hy * W, r * W, 0, Math.PI * 2);
+                g.fillStyle = "#14B8A6"; g.fill(); g.strokeStyle = "#5EEAD4"; g.lineWidth = 2 * s; g.stroke();
+
+                // Eyes & Mouth
+                const inHead = p => p && Math.hypot(p[0] - hx, p[1] - hy) < r * 1.05;
+                g.fillStyle = "#020617";
+                for (const [p, dx] of [[P[2], -r * 0.38], [P[5], r * 0.38]]) {
+                    const ok = inHead(p), ex = ok ? p[0] : hx + dx, ey = ok ? p[1] : hy - r * 0.08;
+                    g.beginPath(); g.arc(ex * W, ey * W, 4.4 * s, 0, Math.PI * 2); g.fill();
+                }
+                const m1 = inHead(P[9]) ? P[9] : [hx - r * 0.22, hy + r * 0.42];
+                const m2 = inHead(P[10]) ? P[10] : [hx + r * 0.22, hy + r * 0.42];
+                if(m1 && m2) {
+                    g.beginPath(); g.moveTo(X(m1), Y(m1)); g.lineTo(X(m2), Y(m2));
+                    g.strokeStyle = "#020617"; g.lineWidth = 3.4 * s; g.stroke();
+                }
+            }
+        }
+
+        // Hands
+        const al = f.alpha || {};
+        for (const [h, col, a] of [[f.left, "#818CF8", al.left ?? 1], [f.right, "#C084FC", al.right ?? 1]]) {
+            if (!h || a < 0.02) continue;
+            g.save();
+            g.globalAlpha = Math.min(1, a); g.shadowColor = col; g.shadowBlur = 18 * s;
+            g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 12 * s;
+            g.beginPath();
+            [0, 1, 5, 9, 13, 17].forEach((i, n) => {
+                if(h[i]) { n ? g.lineTo(X(h[i]), Y(h[i])) : g.moveTo(X(h[i]), Y(h[i])); }
+            });
+            g.closePath(); g.fill(); g.stroke();
+            g.lineWidth = 10 * s;
+            for (const c of FINGERS) {
+                g.beginPath(); c.forEach((i, n) => {
+                    if(h[i]) { n ? g.lineTo(X(h[i]), Y(h[i])) : g.moveTo(X(h[i]), Y(h[i])); }
+                }); g.stroke();
+            }
+            g.shadowBlur = 0; g.fillStyle = "rgba(11,43,48,.45)";
+            for (const c of FINGERS) for (const i of c.slice(1)) { 
+                if(h[i]){ g.beginPath(); g.arc(X(h[i]), Y(h[i]), 2.4 * s, 0, Math.PI * 2); g.fill(); }
+            }
+            g.restore();
+        }
+    }
+
+    const showAvatar = f => renderAvatar(ctx, f, S_W, S_H, { dpr: DPR });
+
+    // ==========================================
+    // 4. LANDMARK MATH & SMOOTHING ENGINE
+    // ==========================================
+    
+    // BULLETPROOF DICTIONARY REFERENCE GRABBER
+    const getSigns = () => {
+        if (typeof SIGNS !== 'undefined') return SIGNS;
+        if (typeof window.SIGNS !== 'undefined') return window.SIGNS;
+        return null;
+    };
+
+    function fillGaps(frames) {
+        const out = frames.map(f => ({ pose: f.pose, left: f.left, right: f.right }));
+        for (const k of ["pose", "left", "right"]) {
+            let last = null;
+            for (const f of out) { if (f[k]) last = f[k]; else if (last) f[k] = last; }
+            let next = null;
+            for (let i = out.length - 1; i >= 0; i--) { if (out[i][k]) next = out[i][k]; else if (next) out[i][k] = next; }
+        }
+        return out;
+    }
+    
+    function normalize(frames) {
+        const ps = frames.filter(f => f.pose);
+        if (!ps.length) return frames;
+        let cx = 0, cy = 0, sd = 0;
+        for (const f of ps) {
+            const a = f.pose[11], b = f.pose[12];
+            cx += (a[0] + b[0]) / 2; cy += (a[1] + b[1]) / 2; sd += Math.hypot(a[0] - b[0], a[1] - b[1]);
+        }
+        cx /= ps.length; cy /= ps.length; sd = (sd / ps.length) || 0.2;
+        const k = 0.3 / sd, tf = p => [0.5 + (p[0] - cx) * k, 0.42 + (p[1] - cy) * k];
+        return frames.map(f => ({ pose: f.pose && f.pose.map(tf), left: f.left && f.left.map(tf), right: f.right && f.right.map(tf) }));
+    }
+
+    function lerpFrame(a, b, t) {
+        const o = { alpha: {} };
+        o.pose = (a.pose && b.pose) ? b.pose.map((p, i) => [a.pose[i][0] + (p[0] - a.pose[i][0]) * t, a.pose[i][1] + (p[1] - a.pose[i][1]) * t]) : (b.pose || a.pose);
+        for (const k of ["left", "right"]) {
+            const aa = a.alpha ? a.alpha[k] : (a[k] ? 1 : 0);
+            const ba = b.alpha ? b.alpha[k] : (b[k] ? 1 : 0);
+            o.alpha[k] = aa + (ba - aa) * t;
+            o[k] = (a[k] && b[k]) ? b[k].map((p, i) => [a[k][i][0] + (p[0] - a[k][i][0]) * t, a[k][i][1] + (p[1] - a[k][i][1]) * t]) : (b[k] || a[k]);
+        }
+        return o;
+    }
+
+    function smooth(frames) {
+        return frames.map((f, i) => {
+            const p = frames[Math.max(i - 1, 0)], n = frames[Math.min(i + 1, frames.length - 1)];
+            return lerpFrame(lerpFrame(p, f, 0.5), lerpFrame(f, n, 0.5), 0.5);
+        });
+    }
+
+    const cache = {};
+    const prepare = w => {
+        const dict = getSigns();
+        return cache[w] || (cache[w] = smooth(normalize(fillGaps(dict[w]))));
+    };
+
+    const REST = (() => {
+        const pose = Array.from({ length: 33 }, () => [0.5, 0.5]);
+        Object.assign(pose, {
+            0: [0.5, 0.25], 2: [0.46, 0.235], 5: [0.54, 0.235], 7: [0.42, 0.245], 8: [0.58, 0.245],
+            9: [0.48, 0.29], 10: [0.52, 0.29], 11: [0.65, 0.42], 12: [0.35, 0.42],
+            13: [0.69, 0.58], 14: [0.31, 0.58], 15: [0.68, 0.74], 16: [0.32, 0.74],
+        });
+        return { pose, left: null, right: null, alpha: { left: 0, right: 0 } };
+    })();
+
+    let lastFrame = REST;
+    showAvatar(REST);
+
+    // ==========================================
+    // 5. ANIMATION PIPELINE QUEUE
+    // ==========================================
+    let playing = false;
+    let queue = [];
+    let chipEls = [];
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const isSigned = t => {
+        const dict = getSigns();
+        return t.type === "sign" && dict && !!dict[t.gloss.toLowerCase()];
+    };
+
+    async function runQueue() {
+        if (playing) return;
+        playing = true;
+        try {
+            while (true) {
+                while (queue.length) {
+                    const m = queue.shift();
+                    showUtterance(m);
+                    if (!m.silent) addLog(m);
+                    
+                    for (let i = 0; i < m.tokens.length; i++) {
+                        await playToken(m.tokens[i], i);
+                    }
+                    await sleep(150);
+                }
+                await toRest();
+                if (!queue.length) break;
+            }
+        } finally {
+            playing = false;
+            document.getElementById('subtitles').textContent = 'Awaiting audio or text input...';
+            document.getElementById('subtitles').classList.add('idle');
+            chipEls.forEach(el => el.classList.remove('active', 'done'));
+        }
+    }
+
+    function enqueue(m) { queue.push(m); runQueue(); }
+
+    async function toRest() {
+        if (lastFrame === REST) return;
+        const from = lastFrame;
+        const speed = parseFloat(document.getElementById('speedSlider').value) || 1.0;
+        for (let i = 1; i <= 10; i++) { 
+            showAvatar(lerpFrame(from, REST, i / 10)); 
+            await sleep(1000 / (30 * speed)); 
+        }
+        lastFrame = REST;
+    }
+
+    function setSpelling(letters, on) {
+        const container = document.getElementById('subtitles');
+        container.classList.remove('idle');
+        let html = '<div style="display:flex; justify-content:center; gap:8px;">';
+        letters.forEach((c, j) => { html += `<span class="letter ${j === on ? 'on' : ''}">${c}</span>`; });
+        html += '</div><div style="font-size:11px; color:var(--text-muted); margin-top:8px; font-family:var(--font-sans); letter-spacing:0.1em;">FINGERSPELLING FALLBACK</div>';
+        container.innerHTML = html;
+    }
+
+    async function playToken(t, idx) {
+        if(chipEls[idx]) chipEls[idx].className = chipEls[idx].className.replace(/\b(active|done)\b/g, '').trim() + ' active';
+        
+        const w = t.gloss.toLowerCase();
+        const speed = parseFloat(document.getElementById('speedSlider').value) || 1.0;
+
+        if (isSigned(t)) {
+            document.getElementById('subtitles').classList.remove('idle');
+            document.getElementById('subtitles').innerHTML = `<span class="active-word">${t.gloss}</span>`;
+            const frames = prepare(w);
+            for (let i = 1; i <= 8; i++) { 
+                showAvatar(lerpFrame(lastFrame, frames[0], i / 8)); 
+                await sleep(1000 / (30 * speed)); 
+            }
+            for (let i = 0; i < frames.length; i++) {
+                showAvatar(frames[i]); 
+                lastFrame = frames[i];
+                await sleep(1000 / (30 * speed));
+            }
+        } else {
+            await toRest();
+            const letters = [...t.gloss];
+            for (let i = 0; i < letters.length; i++) { 
+                setSpelling(letters, i); 
+                await sleep(380); 
+            }
+            await sleep(200);
+        }
+        
+        if(chipEls[idx]) chipEls[idx].className = chipEls[idx].className.replace(/\b(active|done)\b/g, '').trim() + ' done';
+    }
+
+    // ==========================================
+    // 6. UI STATE UPDATERS & WEBSOCKETS
+    // ==========================================
+    function showUtterance(m) {
+        const chips = document.getElementById('glossChips');
+        chips.innerHTML = '';
+        chipEls = [];
+        const subtitle = document.getElementById('subtitles');
+        subtitle.textContent = m.text;
+        subtitle.classList.remove('idle');
+        m.tokens.forEach(t => {
+            const el = document.createElement('div');
+            el.className = 'tok';
+            if (!isSigned(t)) el.classList.add('spell');
+            el.textContent = isSigned(t) ? t.gloss : '#' + t.gloss;
+            chips.appendChild(el);
+            chipEls.push(el);
+        });
+        document.getElementById('demoInput').value = '';
+    }
+
+    function addLog(m) {
+        if (!window.sessionHistory) window.sessionHistory = [];
+        const historyObj = { ...m, timestamp: new Date() };
+        window.sessionHistory.push(historyObj);
+        const historyIndex = window.sessionHistory.length - 1;
+
+        const tbody = document.querySelector('#historyTable tbody');
+        if(window.sessionHistory.length === 1) tbody.innerHTML = '';
+        const tr = document.createElement('tr');
+        const transcriptCell = document.createElement('td');
+        transcriptCell.textContent = m.text;
+        const glossCell = document.createElement('td');
+        glossCell.className = 'gloss';
+        glossCell.textContent = m.tokens.map(t => t.gloss).join(' ');
+        const timingCell = document.createElement('td');
+        timingCell.className = 'num';
+        timingCell.textContent = `${m.asr_ms || '?'} ms`;
+        const actionCell = document.createElement('td');
+        const replayButton = document.createElement('button');
+        replayButton.className = 'pill';
+        replayButton.type = 'button';
+        replayButton.textContent = 'Play';
+        replayButton.style.padding = '4px 10px';
+        replayButton.addEventListener('click', () => replay(historyIndex));
+        actionCell.appendChild(replayButton);
+        tr.append(transcriptCell, glossCell, timingCell, actionCell);
+        tbody.prepend(tr);
+
+        document.getElementById('statSent').textContent = window.sessionHistory.length;
+        let tTokens = 0, sTokens = 0;
+        window.sessionHistory.forEach(h => h.tokens.forEach(t => { tTokens++; if(isSigned(t)) sTokens++; }));
+        document.getElementById('statCov').textContent = tTokens ? Math.round((sTokens/tTokens)*100) + '%' : '0%';
+    }
+
+    window.replay = (idx) => { 
+        if(window.sessionHistory && window.sessionHistory[idx]) {
+            enqueue({ ...window.sessionHistory[idx], silent: true });
+        }
+    };
+
+    let ws = null;
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        const status = document.getElementById('connStatus');
+
+        ws.onopen = () => {
+            status.classList.remove('wait', 'bad');
+            status.classList.add('ok');
+            status.innerHTML = '<span class="dot"></span>CONNECTED · STARTING MIC';
+        };
+
+        ws.onclose = () => {
+            status.classList.remove('wait', 'ok');
+            status.classList.add('bad');
+            status.innerHTML = `<span class="dot" id="connIndicator"></span>RECONNECTING...`;
+            setTimeout(connectWS, 3000);
+        };
+
+        ws.onmessage = (event) => {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (error) {
+                console.error('SignBridge received invalid WebSocket data.', error);
+                return;
+            }
+            if (data.type === 'status') {
+                if (data.text === 'Listening...') {
+                    status.classList.remove('wait', 'bad');
+                    status.classList.add('ok');
+                    status.innerHTML = '<span class="dot"></span>CONNECTED · MIC LISTENING';
+                } else if (data.text.startsWith('Microphone unavailable:')) {
+                    status.classList.remove('wait', 'ok');
+                    status.classList.add('bad');
+                    status.innerHTML = '<span class="dot"></span>MIC UNAVAILABLE · TYPED INPUT READY';
+                }
+                if(!playing) {
+                    const sub = document.getElementById('subtitles');
+                    sub.textContent = data.text;
+                    sub.classList.remove('idle');
+                }
+            } else if (data.type === 'utterance') {
+                enqueue(data);
+            }
+        };
+    }
+
+    window.sendText = function(text) {
+        text = text.trim();
+        if (!text) return;
+        if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'text', text }));
+        } else {
+            const dict = getSigns();
+            const words = text.toLowerCase().match(/[a-z]+/g) || [];
+            enqueue({ 
+                text: text, 
+                asr_ms: 0, 
+                tokens: words.map(w => ({ gloss: w.toUpperCase(), type: (dict && dict[w]) ? "sign" : "fingerspell" })) 
+            });
+        }
+    };
+
+    // Dictionary Init
+    function initDict() {
+        const dict = getSigns();
+        if (!dict) {
+            console.warn("SignBridge: SIGNS dictionary payload not detected.");
+            return;
+        }
+        const list = document.getElementById('dictList');
+        const words = Object.keys(dict).sort();
+        
+        const renderDict = filter => {
+            list.innerHTML = '';
+            words.filter(w => w.includes(filter.toLowerCase())).forEach(w => {
+                const btn = document.createElement('button');
+                btn.className = 'dict-item';
+                btn.textContent = w.toUpperCase();
+                btn.onclick = () => {
+                    enqueue({ text: w, silent: true, tokens: [{ type: 'sign', gloss: w.toUpperCase() }]});
+                };
+                list.appendChild(btn);
+            });
+        };
+        renderDict('');
+        document.getElementById('dictSearch').addEventListener('input', e => renderDict(e.target.value));
+    }
+
+    // Listeners
+    document.getElementById('csvBtn').addEventListener('click', () => {
+        let csv = 'Time,Transcript,Glosses,ASR_Time_ms\n';
+        if(window.sessionHistory) window.sessionHistory.forEach(row => {
+            const glossText = row.tokens.map(t => t.gloss).join(' ');
+            const time = row.timestamp.toISOString();
+            csv += `"${time}","${row.text}","${glossText}",${row.asr_ms || ''}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'signbridge_telemetry.csv';
+        a.click();
+    });
+
+    document.getElementById('sendBtn').addEventListener('click', () => {
+        sendText(document.getElementById('demoInput').value);
+    });
+    document.getElementById('demoInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') sendText(e.target.value);
+    });
+    document.getElementById('speedSlider').addEventListener('input', e => {
+        document.getElementById('speedVal').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+    });
+
+    window.addEventListener('load', () => {
+        connectWS();
+        initDict();
+    });
+
+})();
+</script>

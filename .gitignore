@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+videos/
+*.mp4
+.vscode/
+results.csv
+nslt_*.json
+missing.txt
+wlasl_class_list.txt
+WLASL_v0.3.json
+landmarks-backup/
+review_sheets/
+tmp/
+output/

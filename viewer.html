@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sign Avatar Viewer</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; text-align: center; }
+  canvas { background: #000; border: 1px solid #444; margin-top: 10px; }
+  select, input, button { font-size: 16px; padding: 6px; margin: 4px; }
+  #label { font-size: 28px; height: 36px; }
+</style>
+</head>
+<body>
+  <h2>Sign Avatar Viewer</h2>
+  <div>
+    Single word: <select id="word"></select>
+    <button onclick="playWords([document.getElementById('word').value])">Play</button>
+  </div>
+  <div>
+    Sentence: <input id="sentence" size="30" value="hello i want hospital">
+    <button onclick="playWords(document.getElementById('sentence').value.toLowerCase().split(/\s+/))">Play sentence</button>
+  </div>
+  <div id="label"></div>
+  <canvas id="c" width="500" height="500"></canvas>
+
+<script src="landmarks_data.js"></script>
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const FPS = 25;
+
+const HAND = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+              [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const BODY = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
+
+// fill frames where a hand or the pose was not detected, using the last known values
+function fillGaps(frames) {
+  const last = { pose: null, left: null, right: null };
+  return frames.map(f => {
+    const out = {};
+    for (const k of ["pose", "left", "right"]) {
+      if (f[k]) last[k] = f[k];
+      out[k] = last[k];
+    }
+    return out;
+  });
+}
+
+function line(a, b, color, width) {
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(a[0] * W, a[1] * H);
+  ctx.lineTo(b[0] * W, b[1] * H);
+  ctx.stroke();
+}
+function dot(p, color, r) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, r, 0, 6.3); ctx.fill();
+}
+
+function draw(f) {
+  ctx.clearRect(0, 0, W, H);
+  if (f.pose) {
+    for (const [a, b] of BODY) line(f.pose[a], f.pose[b], "#4da3ff", 4);
+    dot(f.pose[0], "#4da3ff", 14);            // head (nose)
+  }
+  for (const [side, color] of [["left", "#ffcc00"], ["right", "#ff6688"]]) {
+    const h = f[side];
+    if (!h) continue;
+    for (const [a, b] of HAND) line(h[a], h[b], color, 2);
+    for (const p of h) dot(p, color, 3);
+  }
+}
+
+let token = 0;
+async function playWords(words) {
+  const my = ++token;
+  for (const w of words) {
+    if (!SIGNS[w]) { document.getElementById("label").textContent = "(no sign for '" + w + "')"; await sleep(500); continue; }
+    document.getElementById("label").textContent = w.toUpperCase();
+    for (const f of fillGaps(SIGNS[w])) {
+      if (my !== token) return;
+      draw(f);
+      await sleep(1000 / FPS);
+    }
+    await sleep(150);
+  }
+  document.getElementById("label").textContent = "";
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const sel = document.getElementById("word");
+Object.keys(SIGNS).sort().forEach(w => sel.add(new Option(w, w)));
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Live Sign Avatar</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; text-align: center; }
+  canvas { background: #000; border: 1px solid #444; margin-top: 10px; }
+  #status { color: #8f8; height: 24px; }
+  #heard { font-size: 20px; height: 30px; }
+  #label { font-size: 32px; height: 42px; color: #ffcc00; }
+  #gloss { font-size: 16px; color: #999; height: 24px; }
+</style>
+</head>
+<body>
+  <h2>Live Speech to Sign Avatar</h2>
+  <div id="status">Connecting...</div>
+  <div id="heard"></div>
+  <div id="gloss"></div>
+  <div id="label"></div>
+  <canvas id="c" width="500" height="500"></canvas>
+
+<script src="landmarks_data.js"></script>
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const FPS = 25;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = id => document.getElementById(id);
+
+const HAND = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+              [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const BODY = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
+
+function fillGaps(frames) {
+  const last = { pose: null, left: null, right: null };
+  return frames.map(f => {
+    const out = {};
+    for (const k of ["pose", "left", "right"]) {
+      if (f[k]) last[k] = f[k];
+      out[k] = last[k];
+    }
+    return out;
+  });
+}
+function line(a, b, color, width) {
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(a[0]*W, a[1]*H); ctx.lineTo(b[0]*W, b[1]*H); ctx.stroke();
+}
+function dot(p, color, r) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(p[0]*W, p[1]*H, r, 0, 6.3); ctx.fill();
+}
+function draw(f) {
+  ctx.clearRect(0, 0, W, H);
+  if (f.pose) {
+    for (const [a, b] of BODY) line(f.pose[a], f.pose[b], "#4da3ff", 4);
+    dot(f.pose[0], "#4da3ff", 14);
+  }
+  for (const [side, color] of [["left", "#ffcc00"], ["right", "#ff6688"]]) {
+    const h = f[side];
+    if (!h) continue;
+    for (const [a, b] of HAND) line(h[a], h[b], color, 2);
+    for (const p of h) dot(p, color, 3);
+  }
+}
+
+// sentences wait in a queue and are played one at a time
+const queue = [];
+let playing = false;
+
+async function playSign(token) {
+  const w = token.gloss.toLowerCase();
+  if (token.type === "sign" && SIGNS[w]) {
+    $("label").textContent = token.gloss;
+    for (const f of fillGaps(SIGNS[w])) { draw(f); await sleep(1000 / FPS); }
+  } else {
+    $("label").textContent = "#" + token.gloss + " (fingerspelling not built yet)";
+    await sleep(800);
+  }
+  await sleep(150);
+}
+
+async function runQueue() {
+  if (playing) return;
+  playing = true;
+  while (queue.length) {
+    const msg = queue.shift();
+    $("heard").textContent = msg.text;
+    $("gloss").textContent = msg.tokens.map(t => t.type === "sign" ? t.gloss : "#" + t.gloss).join(" ");
+    for (const t of msg.tokens) await playSign(t);
+    $("label").textContent = "";
+  }
+  playing = false;
+}
+
+const ws = new WebSocket("ws://" + location.host + "/ws");
+ws.onopen = () => $("status").textContent = "Connected. Speak a sentence, then pause.";
+ws.onclose = () => { $("status").textContent = "Disconnected. Is server.py running?"; $("status").style.color = "#f88"; };
+ws.onmessage = e => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === "status") $("status").textContent = msg.text;
+  if (msg.type === "utterance") { queue.push(msg); runQueue(); }
+};
+</script>
+</body>
+</html>
